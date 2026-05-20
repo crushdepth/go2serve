@@ -5,7 +5,7 @@ A secure, lightweight static file webserver. Deploy anywhere, run with a single 
 ## Design principles
 
 - Standard library first — minimal third-party dependencies
-- Secure by default — path traversal prevention, security headers, TLS 1.2+
+- Emphasis on secure default operation — path traversal prevention, security headers, TLS 1.2+
 - Lightweight — no CGO, single static binary, runs in a scratch Docker image
 
 ---
@@ -30,7 +30,6 @@ A `QUICKSTART.md` guide is included for the fastest path from clone to running s
 ### Docker (recommended)
 
 ```bash
-make build
 make up
 ```
 
