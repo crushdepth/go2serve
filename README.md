@@ -14,10 +14,6 @@ A secure, lightweight static file webserver. Deploy anywhere, run with a single 
 
 ### Docker (recommended)
 
-```bash
-docker pull go2serve:latest
-```
-
 Or build from source:
 
 ```bash
