@@ -29,16 +29,17 @@ A `QUICKSTART.md` guide is included for the fastest path from clone to running s
 
 ### Docker (recommended)
 
-Or build from source:
+```bash
+make build
+make up
+```
+
+A `docker-compose.yml` is provided with the HTTP-only configuration as the default, and HTTPS variants as comments. Edit the volume path and uncomment the relevant lines for your setup. See `QUICKSTART.md` for a step-by-step walkthrough.
+
+To build the image manually:
 
 ```bash
 docker build -t go2serve .
-```
-
-A `docker-compose.yml` is provided with the HTTP-only configuration as the default, and HTTPS variants as comments. Edit the volume path and uncomment the relevant lines for your setup, then run:
-
-```bash
-docker compose -p go2serve up -d
 ```
 
 ### From source
@@ -89,16 +90,16 @@ Requires a public domain name with DNS pointing at this server, and port 80 reac
 go2serve --root /path/to/files --domain example.com --cache-dir /path/to/certs
 ```
 
-Docker:
+Docker (using docker-compose.yml is recommended — see `QUICKSTART.md`):
 
 ```bash
 docker run -p 80:8080 -p 443:8443 \
   -v /path/to/files:/srv:ro \
-  -v /path/to/certs:/certs \
+  -v go2serve-certs:/certs \
   go2serve --root /srv --domain example.com
 ```
 
-The certificate cache directory must be writable. Certificates are obtained on first connection and renewed automatically.
+Certificates are obtained on first connection and renewed automatically. The named volume `go2serve-certs` is managed by Docker — no directory setup needed.
 
 ### HTTPS — manual certificates
 

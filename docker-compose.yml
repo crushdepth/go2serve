@@ -11,9 +11,13 @@ services:
     volumes:
       - /path/to/files:/srv:ro
       # - /path/to/certs:/certs:ro   # uncomment for manual HTTPS certs
-      # - /path/to/certs:/certs      # uncomment for Let's Encrypt (needs write access)
+      # - go2serve-certs:/certs      # uncomment for Let's Encrypt
     command: ["--root", "/srv"]
     # HTTPS with manual certs:
     # command: ["--root", "/srv", "--cert", "/certs/cert.pem", "--key", "/certs/key.pem"]
     # HTTPS with Let's Encrypt:
     # command: ["--root", "/srv", "--domain", "example.com"]
+
+# Uncomment for Let's Encrypt:
+# volumes:
+#   go2serve-certs:
