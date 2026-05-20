@@ -10,6 +10,21 @@ A secure, lightweight static file webserver. Deploy anywhere, run with a single 
 
 ---
 
+## Configuration
+
+Before running go2serve, you must configure which directory to serve. Edit `docker-compose.yml` and replace the placeholder volume path:
+
+```yaml
+volumes:
+  - /path/to/files:/srv:ro    # <-- change /path/to/files to your directory
+```
+
+For HTTPS, uncomment the relevant port and command lines in the same file. See the [Usage](#usage) section for details.
+
+A `QUICKSTART.md` guide is included for the fastest path from clone to running server.
+
+---
+
 ## Installation
 
 ### Docker (recommended)
