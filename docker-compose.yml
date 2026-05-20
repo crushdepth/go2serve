@@ -1,0 +1,19 @@
+# Usage: docker compose -p go2serve up -d
+
+services:
+  go2serve:
+    image: go2serve
+    build: .
+    restart: unless-stopped
+    ports:
+      - "80:8080"
+      # - "443:8443"   # uncomment for HTTPS
+    volumes:
+      - /path/to/files:/srv:ro
+      # - /path/to/certs:/certs:ro   # uncomment for manual HTTPS certs
+      # - /path/to/certs:/certs      # uncomment for Let's Encrypt (needs write access)
+    command: ["--root", "/srv"]
+    # HTTPS with manual certs:
+    # command: ["--root", "/srv", "--cert", "/certs/cert.pem", "--key", "/certs/key.pem"]
+    # HTTPS with Let's Encrypt:
+    # command: ["--root", "/srv", "--domain", "example.com"]
