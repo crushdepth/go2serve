@@ -1,6 +1,6 @@
 # go2serve
 
-A secure, lightweight static file webserver. Deploy anywhere, run with a single command.
+A lightweight static file webserver. Secure defaults, single binary, deploy anywhere with a single command.
 
 ## Design principles
 
@@ -16,7 +16,7 @@ Before running go2serve, you must configure which directory to serve. Edit `dock
 
 ```yaml
 volumes:
-  - /path/to/files:/srv:ro    # <-- change /path/to/files to your directory
+  - /path/to/files:/srv:ro    # <-- change /path/to/files to your intended webroot directory.
 ```
 
 For HTTPS, uncomment the relevant port and command lines in the same file. See the [Usage](#usage) section for details.
