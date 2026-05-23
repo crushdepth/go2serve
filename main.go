@@ -27,25 +27,26 @@ import (
 // version is the current release. It can be overridden at build time:
 //
 //	go build -ldflags "-X main.version=v1.0" .
-var version = "v1.0-alpha"
+var version = "v1.0"
 
 // config holds all runtime configuration parsed from command-line flags.
 type config struct {
-	root       string
-	host       string
-	domain     string
-	cacheDir   string
-	cert       string
-	key        string
-	httpAddr   string
-	httpsAddr  string
-	timeout    time.Duration
-	hstsMaxAge int
-	csp        string
-	noListing  bool
-	maxConns   int
-	rateLimit  float64
-	rateBurst  int
+	root           string
+	host           string
+	domain         string
+	cacheDir       string
+	cert           string
+	key            string
+	httpAddr       string
+	httpsAddr      string
+	timeout        time.Duration
+	hstsMaxAge     int
+	csp            string
+	noListing      bool
+	maxConns       int
+	rateLimit      float64
+	rateBurst      int
+	trustedProxies string
 }
 
 // main parses command-line flags and starts the server.
@@ -66,8 +67,9 @@ func main() {
 	flag.StringVar(&cfg.csp, "csp", "", "Content-Security-Policy header value (omitted if empty)")
 	flag.BoolVar(&cfg.noListing, "no-listing", false, "return 403 for directories that have no index.html")
 	flag.IntVar(&cfg.maxConns, "max-conns", 10000, "maximum concurrent connections (0 = unlimited)")
-	flag.Float64Var(&cfg.rateLimit, "rate-limit", 50, "per-IP requests per second (0 = unlimited)")
-	flag.IntVar(&cfg.rateBurst, "rate-burst", 100, "per-IP burst allowance")
+	flag.Float64Var(&cfg.rateLimit, "rate-limit", 100, "per-IP requests per second (0 = unlimited)")
+	flag.IntVar(&cfg.rateBurst, "rate-burst", 200, "per-IP burst allowance")
+	flag.StringVar(&cfg.trustedProxies, "trusted-proxies", "", "comma-separated IPs/CIDRs whose X-Forwarded-For header is trusted")
 	flag.Parse()
 
 	if showVersion {
@@ -137,9 +139,31 @@ func run(cfg config) error {
 		return err
 	}
 
+	var trustedNets []*net.IPNet
+	if cfg.trustedProxies != "" {
+		for _, entry := range strings.Split(cfg.trustedProxies, ",") {
+			entry = strings.TrimSpace(entry)
+			if entry == "" {
+				continue
+			}
+			if !strings.Contains(entry, "/") {
+				if strings.Contains(entry, ":") {
+					entry += "/128"
+				} else {
+					entry += "/32"
+				}
+			}
+			_, cidr, err := net.ParseCIDR(entry)
+			if err != nil {
+				return fmt.Errorf("--trusted-proxies: invalid entry %q: %w", entry, err)
+			}
+			trustedNets = append(trustedNets, cidr)
+		}
+	}
+
 	var rl *rateLimiter
 	if cfg.rateLimit > 0 {
-		rl = newRateLimiter(cfg.rateLimit, cfg.rateBurst)
+		rl = newRateLimiter(cfg.rateLimit, cfg.rateBurst, trustedNets)
 		defer rl.stop()
 	}
 

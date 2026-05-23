@@ -136,8 +136,31 @@ Certificates are re-read from disk every 60 seconds, so rotation requires no res
 | `--hsts-max-age` | `0` | If non-zero, sets `Strict-Transport-Security: max-age=N` on HTTPS responses. Only takes effect in HTTPS mode. Do not enable until HTTPS is confirmed working. |
 | `--csp` | | If set, the value is sent as the `Content-Security-Policy` header on every response. The appropriate value depends on the content being served. |
 | `--no-listing` | | Disable directory listings. Directories without an `index.html` return 403 instead of a file listing. |
+| `--max-conns` | `10000` | Maximum concurrent connections. `0` disables the limit. |
+| `--rate-limit` | `100` | Per-IP requests per second. `0` disables rate limiting. |
+| `--rate-burst` | `200` | Per-IP burst allowance (initial and max tokens). |
+| `--trusted-proxies` | | Comma-separated IPs or CIDRs (e.g. `10.0.0.1,172.16.0.0/12`) whose `X-Forwarded-For` header is trusted for rate limiting. Without this, all requests are rate-limited by their direct connection address. |
 
 In HTTPS mode, the HTTP listener redirects all requests to HTTPS. In HTTP-only mode, the HTTP listener serves files directly.
+
+### Rate limiting
+
+Rate limiting is per-IP using a token bucket algorithm. Each client IP gets an independent bucket that refills at `--rate-limit` tokens per second up to `--rate-burst`. Requests that exceed the limit receive a `429 Too Many Requests` response.
+
+When behind a reverse proxy, all traffic arrives from the proxy's IP, which defeats per-IP rate limiting. Use `--trusted-proxies` to tell go2serve to extract the real client IP from the `X-Forwarded-For` header instead:
+
+```bash
+# Trust a single reverse proxy
+go2serve --root /srv --trusted-proxies 10.0.0.1
+
+# Trust a CIDR range (e.g. Docker network)
+go2serve --root /srv --trusted-proxies 172.17.0.0/16
+
+# Trust multiple proxies
+go2serve --root /srv --trusted-proxies 10.0.0.1,10.0.0.2
+```
+
+Only the rightmost non-trusted IP in the `X-Forwarded-For` chain is used, which prevents clients from spoofing their IP by prepending fake entries to the header. Do not set `--trusted-proxies` to broad ranges — only include your actual proxy IPs.
 
 ---
 

@@ -6,6 +6,7 @@ package main
 import (
 	"net"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 )
@@ -19,23 +20,26 @@ type ipEntry struct {
 
 // rateLimiter implements a per-IP token bucket rate limiter. Each IP address
 // gets its own bucket that refills at rate tokens per second up to a maximum of
-// burst tokens. A background goroutine periodically evicts stale entries to
-// bound memory usage.
+// burst tokens. When trustedProxies is configured, requests from those IPs are
+// rate-limited by the client IP in X-Forwarded-For instead of RemoteAddr.
+// A background goroutine periodically evicts stale entries to bound memory usage.
 type rateLimiter struct {
-	rate  float64
-	burst float64
-	ips   sync.Map
-	done  chan struct{}
+	rate           float64
+	burst          float64
+	trustedProxies []*net.IPNet
+	ips            sync.Map
+	done           chan struct{}
 }
 
 // newRateLimiter creates a rateLimiter that allows rate requests per second
 // per IP with an initial and maximum capacity of burst. It starts a background
 // cleanup goroutine that must be stopped by calling stop.
-func newRateLimiter(rate float64, burst int) *rateLimiter {
+func newRateLimiter(rate float64, burst int, trustedProxies []*net.IPNet) *rateLimiter {
 	rl := &rateLimiter{
-		rate:  rate,
-		burst: float64(burst),
-		done:  make(chan struct{}),
+		rate:           rate,
+		burst:          float64(burst),
+		trustedProxies: trustedProxies,
+		done:           make(chan struct{}),
 	}
 	go rl.cleanup()
 	return rl
@@ -50,21 +54,21 @@ func (rl *rateLimiter) stop() {
 // It refills the token bucket based on elapsed time since the last request,
 // then consumes one token. Returns false when no tokens are available.
 func (rl *rateLimiter) allow(ip string) bool {
-	now := time.Now()
-
 	val, ok := rl.ips.Load(ip)
 	if !ok {
-		val, _ = rl.ips.LoadOrStore(ip, &ipEntry{tokens: rl.burst, lastSeen: now})
+		val, _ = rl.ips.LoadOrStore(ip, &ipEntry{tokens: rl.burst})
 	}
 	entry := val.(*ipEntry)
 
 	entry.mu.Lock()
 	defer entry.mu.Unlock()
 
-	elapsed := now.Sub(entry.lastSeen).Seconds()
-	entry.tokens += elapsed * rl.rate
-	if entry.tokens > rl.burst {
-		entry.tokens = rl.burst
+	now := time.Now()
+	if !entry.lastSeen.IsZero() {
+		entry.tokens += now.Sub(entry.lastSeen).Seconds() * rl.rate
+		if entry.tokens > rl.burst {
+			entry.tokens = rl.burst
+		}
 	}
 	entry.lastSeen = now
 
@@ -75,16 +79,60 @@ func (rl *rateLimiter) allow(ip string) bool {
 	return true
 }
 
-// wrap returns an http.Handler middleware that extracts the client IP from
-// RemoteAddr and rejects requests that exceed the rate limit with 429 Too
-// Many Requests.
+// clientIP extracts the client IP for rate limiting. If the direct peer is a
+// trusted proxy, the X-Forwarded-For chain is walked right-to-left, skipping
+// trusted proxy IPs, to find the first non-trusted client IP. Entries that
+// cannot be parsed as IPs are ignored (treated as corrupt/spoofed). If no
+// valid non-trusted IP is found, RemoteAddr is used.
+func (rl *rateLimiter) clientIP(r *http.Request) string {
+	ip, _, _ := net.SplitHostPort(r.RemoteAddr)
+	if ip == "" {
+		ip = r.RemoteAddr
+	}
+	if len(rl.trustedProxies) == 0 {
+		return ip
+	}
+	if !rl.isTrusted(net.ParseIP(ip)) {
+		return ip
+	}
+	xff := strings.Join(r.Header.Values("X-Forwarded-For"), ",")
+	if xff == "" {
+		return ip
+	}
+	parts := strings.Split(xff, ",")
+	for i := len(parts) - 1; i >= 0; i-- {
+		candidate := strings.TrimSpace(parts[i])
+		if candidate == "" {
+			continue
+		}
+		candidateIP := net.ParseIP(candidate)
+		if candidateIP == nil {
+			continue
+		}
+		if !rl.isTrusted(candidateIP) {
+			return candidateIP.String()
+		}
+	}
+	return ip
+}
+
+func (rl *rateLimiter) isTrusted(ip net.IP) bool {
+	if ip == nil {
+		return false
+	}
+	for _, cidr := range rl.trustedProxies {
+		if cidr.Contains(ip) {
+			return true
+		}
+	}
+	return false
+}
+
+// wrap returns an http.Handler middleware that extracts the client IP and
+// rejects requests that exceed the rate limit with 429 Too Many Requests.
 func (rl *rateLimiter) wrap(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		ip, _, _ := net.SplitHostPort(r.RemoteAddr)
-		if ip == "" {
-			ip = r.RemoteAddr
-		}
-		if !rl.allow(ip) {
+		if !rl.allow(rl.clientIP(r)) {
 			http.Error(w, "Too Many Requests", http.StatusTooManyRequests)
 			return
 		}
