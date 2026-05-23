@@ -14,7 +14,7 @@ services:
       # - go2serve-certs:/certs      # uncomment for Let's Encrypt
     command: ["--root", "/srv"]
     # HTTPS with manual certs:
-    # command: ["--root", "/srv", "--cert", "/certs/cert.pem", "--key", "/certs/key.pem"]
+    # command: ["--root", "/srv", "--cert", "/certs/cert.pem", "--key", "/certs/key.pem", "--host", "example.com"]
     # HTTPS with Let's Encrypt:
     # command: ["--root", "/srv", "--domain", "example.com"]
 

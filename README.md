@@ -10,7 +10,7 @@ A secure, lightweight static file webserver. Deploy anywhere, run with a single 
 
 ---
 
-## Configuration
+## 1. Configure!
 
 Before running go2serve, you must configure which directory to serve. Edit `docker-compose.yml` and replace the placeholder volume path:
 
@@ -25,7 +25,7 @@ A `QUICKSTART.md` guide is included for the fastest path from clone to running s
 
 ---
 
-## Installation
+## 2. Build and install!
 
 ### Docker (recommended)
 
@@ -43,7 +43,7 @@ docker build -t go2serve .
 
 ### From source
 
-Requires Go 1.22+.
+Requires Go 1.26+.
 
 ```bash
 go build -o go2serve .
@@ -103,7 +103,7 @@ Certificates are obtained on first connection and renewed automatically. The nam
 ### HTTPS — manual certificates
 
 ```bash
-go2serve --root /path/to/files --cert /path/to/cert.pem --key /path/to/key.pem
+go2serve --root /path/to/files --cert /path/to/cert.pem --key /path/to/key.pem --host example.com
 ```
 
 Docker:
@@ -112,7 +112,7 @@ Docker:
 docker run -p 80:8080 -p 443:8443 \
   -v /path/to/files:/srv:ro \
   -v /path/to/certs:/certs:ro \
-  go2serve --root /srv --cert /certs/cert.pem --key /certs/key.pem
+  go2serve --root /srv --cert /certs/cert.pem --key /certs/key.pem --host example.com
 ```
 
 Certificates are re-read from disk every 60 seconds, so rotation requires no restart.
@@ -126,7 +126,7 @@ Certificates are re-read from disk every 60 seconds, so rotation requires no res
 | `--version` | | Print version and exit |
 | `--root` | *(required)* | Directory to serve files from |
 | `--domain` | | Domain for Let's Encrypt. Enables HTTPS. Mutually exclusive with `--cert`/`--key`. |
-| `--host` | | Expected hostname for HTTP→HTTPS redirect validation (manual HTTPS mode). Requests with a different `Host` header are rejected with 400. Has no effect in HTTP-only mode. |
+| `--host` | | Expected hostname for HTTP→HTTPS redirect validation (manual HTTPS mode). Requests with a different `Host` header are rejected with 400. Has no effect in HTTP-only or Let's Encrypt mode. |
 | `--cache-dir` | `/certs` | Directory to cache Let's Encrypt certificates |
 | `--cert` | | TLS certificate file (PEM). Requires `--key`. |
 | `--key` | | TLS private key file (PEM). Requires `--cert`. |
