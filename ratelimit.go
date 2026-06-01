@@ -116,6 +116,23 @@ func (rl *rateLimiter) clientIP(r *http.Request) string {
 	return ip
 }
 
+// bucketKey normalises a client IP into the key used for its rate-limit bucket.
+// IPv6 addresses are aggregated to their /64 prefix: a single client is
+// routinely assigned a whole /64 (or larger), so keying on the full /128 would
+// let one client mint unlimited buckets — exhausting memory between cleanup
+// passes and rotating addresses to evade the per-IP limit. IPv4 addresses are
+// keyed in full (/32). Unparseable input is returned unchanged.
+func bucketKey(ip string) string {
+	parsed := net.ParseIP(ip)
+	if parsed == nil {
+		return ip
+	}
+	if v4 := parsed.To4(); v4 != nil {
+		return v4.String()
+	}
+	return parsed.Mask(net.CIDRMask(64, 128)).String()
+}
+
 func (rl *rateLimiter) isTrusted(ip net.IP) bool {
 	if ip == nil {
 		return false
@@ -132,7 +149,7 @@ func (rl *rateLimiter) isTrusted(ip net.IP) bool {
 // rejects requests that exceed the rate limit with 429 Too Many Requests.
 func (rl *rateLimiter) wrap(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if !rl.allow(rl.clientIP(r)) {
+		if !rl.allow(bucketKey(rl.clientIP(r))) {
 			http.Error(w, "Too Many Requests", http.StatusTooManyRequests)
 			return
 		}

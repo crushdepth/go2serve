@@ -6,6 +6,7 @@ A lightweight static file webserver. Secure defaults, single binary, deploy anyw
 
 - Standard library first — minimal third-party dependencies
 - Emphasis on secure default operation — path traversal prevention, security headers, TLS 1.2+
+- Hidden files are never served — dotfiles such as `.git/`, `.env`, `.htpasswd` and editor swap files return 404 and are omitted from directory listings. The `.well-known/` directory (RFC 8615) is the deliberate exception, so `security.txt`, app-association files, etc. are served normally.
 - Lightweight — no CGO, single static binary, runs in a scratch Docker image
 
 ---
@@ -132,7 +133,8 @@ Certificates are re-read from disk every 60 seconds, so rotation requires no res
 | `--key` | | TLS private key file (PEM). Requires `--cert`. |
 | `--http-addr` | `:8080` | Address for the HTTP listener |
 | `--https-addr` | `:8443` | Address for the HTTPS listener |
-| `--timeout` | `30s` | Read and write timeout per request |
+| `--timeout` | `30s` | Read timeout per request (time allowed to send the full request). Header reads are bounded separately at 5s. |
+| `--write-timeout` | `0` | Write timeout per request. `0` disables it, so large downloads are never truncated. With `0`, a client slowly draining a response is bounded only by `--max-conns` (and any fronting reverse proxy) — the idle timeout does not cover an in-progress transfer. Set a positive value to cap total response time per request. |
 | `--hsts-max-age` | `0` | If non-zero, sets `Strict-Transport-Security: max-age=N` on HTTPS responses. Only takes effect in HTTPS mode. Do not enable until HTTPS is confirmed working. |
 | `--csp` | | If set, the value is sent as the `Content-Security-Policy` header on every response. The appropriate value depends on the content being served. |
 | `--no-listing` | | Disable directory listings. Directories without an `index.html` return 403 instead of a file listing. |
