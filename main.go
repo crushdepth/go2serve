@@ -27,7 +27,7 @@ import (
 // version is the current release. It can be overridden at build time:
 //
 //	go build -ldflags "-X main.version=v1.0" .
-var version = "v1.0"
+var version = "v1.1.0"
 
 // config holds all runtime configuration parsed from command-line flags.
 type config struct {
@@ -40,6 +40,7 @@ type config struct {
 	httpAddr       string
 	httpsAddr      string
 	timeout        time.Duration
+	writeTimeout   time.Duration
 	hstsMaxAge     int
 	csp            string
 	noListing      bool
@@ -62,7 +63,8 @@ func main() {
 	flag.StringVar(&cfg.key, "key", "", "TLS key file (manual HTTPS mode)")
 	flag.StringVar(&cfg.httpAddr, "http-addr", ":8080", "HTTP listen address")
 	flag.StringVar(&cfg.httpsAddr, "https-addr", ":8443", "HTTPS listen address")
-	flag.DurationVar(&cfg.timeout, "timeout", 30*time.Second, "read/write timeout")
+	flag.DurationVar(&cfg.timeout, "timeout", 30*time.Second, "read timeout per request (time to read the full request)")
+	flag.DurationVar(&cfg.writeTimeout, "write-timeout", 0, "write timeout per request; 0 disables it (recommended for serving large files)")
 	flag.IntVar(&cfg.hstsMaxAge, "hsts-max-age", 0, "Strict-Transport-Security max-age in seconds; 0 disables the header")
 	flag.StringVar(&cfg.csp, "csp", "", "Content-Security-Policy header value (omitted if empty)")
 	flag.BoolVar(&cfg.noListing, "no-listing", false, "return 403 for directories that have no index.html")
@@ -174,7 +176,7 @@ func run(cfg config) error {
 
 	if !autoMode && !manualMode {
 		// HTTP-only mode
-		srv := newServer(cfg.httpAddr, handler, cfg.timeout)
+		srv := newServer(cfg.httpAddr, handler, cfg.timeout, cfg.writeTimeout)
 		ln, err := listen(cfg.httpAddr, cfg.maxConns)
 		if err != nil {
 			return err
@@ -219,8 +221,8 @@ func run(cfg config) error {
 		httpHandler = rl.wrap(httpHandler)
 	}
 
-	httpSrv := newServer(cfg.httpAddr, httpHandler, cfg.timeout)
-	httpsSrv := newServer(cfg.httpsAddr, handler, cfg.timeout)
+	httpSrv := newServer(cfg.httpAddr, httpHandler, cfg.timeout, cfg.writeTimeout)
+	httpsSrv := newServer(cfg.httpsAddr, handler, cfg.timeout, cfg.writeTimeout)
 	httpsSrv.TLSConfig = tlsConfig
 
 	httpLn, err := listen(cfg.httpAddr, cfg.maxConns)
@@ -287,15 +289,20 @@ func listen(addr string, maxConns int) (net.Listener, error) {
 }
 
 // newServer constructs an http.Server with conservative timeouts to limit
-// resource exhaustion from slow or idle clients.
-func newServer(addr string, h http.Handler, timeout time.Duration) *http.Server {
+// resource exhaustion from slow or idle clients. Read and write timeouts are
+// separate: ReadTimeout (with the short ReadHeaderTimeout as the slowloris
+// guard) bounds how long a client may take to send a request, while
+// writeTimeout bounds the response. A writeTimeout of 0 disables the response
+// deadline so large downloads are not truncated; slow-read protection then
+// rests on IdleTimeout and the connection limit.
+func newServer(addr string, h http.Handler, readTimeout, writeTimeout time.Duration) *http.Server {
 	return &http.Server{
 		Addr:              addr,
 		Handler:           h,
 		ReadHeaderTimeout: 5 * time.Second,
-		ReadTimeout:       timeout,
-		WriteTimeout:      timeout,
-		IdleTimeout:       timeout * 2,
+		ReadTimeout:       readTimeout,
+		WriteTimeout:      writeTimeout,
+		IdleTimeout:       readTimeout * 2,
 	}
 }
 
