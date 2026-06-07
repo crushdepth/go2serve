@@ -27,7 +27,7 @@ import (
 // version is the current release. It can be overridden at build time:
 //
 //	go build -ldflags "-X main.version=v1.0" .
-var version = "v1.1.0"
+var version = "v1.2.0"
 
 // config holds all runtime configuration parsed from command-line flags.
 type config struct {

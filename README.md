@@ -4,7 +4,7 @@ A lightweight static file webserver. Secure defaults, single binary, deploy anyw
 
 ## Design principles
 
-- Standard library first — minimal third-party dependencies
+- Standard library first — exactly three dependencies, all under `golang.org/x/*` (the Go team's extended stdlib), pinned by hash and verified at build
 - Emphasis on secure default operation — path traversal prevention, security headers, TLS 1.2+
 - Hidden files are never served — dotfiles such as `.git/`, `.env`, `.htpasswd` and editor swap files return 404 and are omitted from directory listings. The `.well-known/` directory (RFC 8615) is the deliberate exception, so `security.txt`, app-association files, etc. are served normally.
 - Lightweight — no CGO, single static binary, runs in a scratch Docker image
@@ -61,6 +61,46 @@ The current version is printed at startup and can be checked with:
 ```bash
 go2serve --version
 ```
+
+---
+
+## Supply chain & reproducible builds
+
+go2serve ships no prebuilt binaries or images — you build it yourself, and you can
+*verify* that your build matches the source. Trust rests on three things rather than on
+trusting a binary from a stranger:
+
+- **Minimal, pinned dependencies.** Exactly three modules, all `golang.org/x/*` (the Go
+  team's extended stdlib), pinned by cryptographic hash in `go.sum` and enforced at build
+  with `go mod verify`. CGO is off, so the binary is fully static.
+- **Reproducible builds.** The Go toolchain is pinned in `go.mod`, the Docker base image
+  is pinned by immutable `@sha256` digest, and builds use `-trimpath` and `-buildvcs=false`.
+  For a given **OS and architecture**, the same Go version + same commit ⇒ a
+  **byte-identical** binary (a Linux build won't match a macOS build — that's expected;
+  reproducibility is per-platform).
+- **Signed release tags.** Every release tag is signed; the source is provably the
+  maintainer's.
+
+### Build it yourself — and verify
+
+```bash
+make verify        # go mod verify, build, and print the binary's sha256
+```
+
+Run from a clean checkout of a release tag. The printed `sha256` should match what another
+builder **on the same OS and architecture** gets — that is the proof your binary is the
+published source and nothing else. A native Linux build of a given architecture matches the
+Docker build (`make build`) for that architecture, since both use the same flags and the
+digest-pinned toolchain.
+
+### Verify the source is authentic
+
+```bash
+git verify-tag vX.Y.Z
+```
+
+A valid signature confirms the tagged commit is the maintainer's. See
+[`SECURITY.md`](SECURITY.md) for the threat model, dependency detail, and signing setup.
 
 ---
 
